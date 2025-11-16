@@ -1,6 +1,7 @@
 import { McpAgent } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { promises } from "dns";
 
 interface Project {
   id: string;
@@ -47,6 +48,20 @@ export class MyMCP extends McpAgent {
     return listData ? JSON.parse(listData) : [];
   }
 
+  private async getTodosByProject(projectId: string): Promise<Todo[]> {
+    const todoList = await this.getTodoList(projectId);
+    const todos: Todo[] = [];
+
+    for (const todoId of todoList) {
+      const todoData = await this.kv.get(`todo:${todoId}`);
+      if (todoData) {
+        todos.push(JSON.parse(todoData));
+      }
+    }
+
+    return todos;
+  }
+
 
 
   async init() {
@@ -81,7 +96,79 @@ export class MyMCP extends McpAgent {
           }
         ]
       }
-    })
+    });
+
+    this.server.tool("list_projects", "List all projects", {}, async () => {
+      const projectList = await this.getProjectList();
+      const projects: Project[] = [];
+
+      for (const projectId of projectList) {
+        const projectData = await this.kv.get(`project:${projectId}`);
+        if (projectData) {
+          projects.push(JSON.parse(projectData));
+        }
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(projects, null, 2),
+          }
+        ]
+      }
+    });
+
+    this.server.tool("get_projects", "Get a specific project by ID",
+      { project_id: z.string().describe("projectId") },
+      async ({ project_id }) => {
+        const projectData = await this.kv.get(`project:${project_id}`)
+
+        if (!projectData) {
+          throw new Error(`Project with this ID:${project_id} not found`);
+        }
+
+        const project: Project = JSON.parse(projectData);
+        const todos = await this.getTodosByProject(project_id);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ project, todos }, null, 2),
+            }
+          ]
+        }
+      })
+
+
+    this.server.tool("delete_projects", "Get a specific project by ID",
+      { project_id: z.string().describe("projectId") },
+      async ({ project_id }) => {
+        const projectData = await this.kv.get(`project:${project_id}`)
+
+        if (!projectData) {
+          throw new Error(`Project with this ID:${project_id} not found`);
+        }
+
+        const project: Project = JSON.parse(projectData);
+        const todos = await this.getTodosByProject(project_id);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ project, todos }, null, 2),
+            }
+          ]
+        }
+      })
+
+
+
+
+
+
     this.server.tool("create_todo", "Create a new todo in a project", {
       project_id: z.string().describe("Project ID"),
       title: z.string().describe("Todo title"),
