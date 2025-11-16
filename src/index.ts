@@ -82,6 +82,48 @@ export class MyMCP extends McpAgent {
         ]
       }
     })
+    this.server.tool("create_todo", "Create a new todo in a project", {
+      project_id: z.string().describe("Project ID"),
+      title: z.string().describe("Todo title"),
+      description: z.string().optional().describe("Todo description"),
+      priority: z.enum(["low", "medium", "high"]).optional().describe("Todo priority"),
+    }, async ({ project_id, title, description, priority }) => {
+      const projectData = await this.kv.get(`project${project_id}`);
+
+      if (!projectData) {
+        throw new Error(`Project with this id:${project_id} not found`);
+      }
+
+      const todoId = crypto.randomUUID();
+      const todo: Todo = {
+        id: todoId,
+        projectId: project_id,
+        title,
+        description: description || "",
+        status: "pending",
+        priority: priority || "medium",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await this.kv.put(`todo${todoId}`, JSON.stringify(todo));
+
+      const todoList = await this.getTodoList(project_id);
+      todoList.push(todoId),
+        await this.kv.put(
+          `project:${project_id}:todos`,
+          JSON.stringify(todoList)
+        );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(todo, null, 2),
+          }
+        ]
+      }
+    });
   }
 }
 
