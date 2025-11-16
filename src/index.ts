@@ -142,7 +142,7 @@ export class MyMCP extends McpAgent {
       })
 
 
-    this.server.tool("delete_projects", "Get a specific project by ID",
+    this.server.tool("delete_projects", "Delete a project amd all tis todos",
       { project_id: z.string().describe("projectId") },
       async ({ project_id }) => {
         const projectData = await this.kv.get(`project:${project_id}`)
@@ -151,8 +151,18 @@ export class MyMCP extends McpAgent {
           throw new Error(`Project with this ID:${project_id} not found`);
         }
 
-        const project: Project = JSON.parse(projectData);
         const todos = await this.getTodosByProject(project_id);
+
+        for (const todo of todos) {
+          await this.kv.delete(`todo:${todo.id}`)
+        }
+
+        await this.kv.delete(`project:${project_id}:todos`);
+        await this.kv.delete(`project:${project_id}`);
+
+        const projectList = await this.getProjectList();
+        const updateList = projectList.filter((id) => id !== project_id);
+        await this.kv.put("project:list", JSON.stringify(updateList));
 
         return {
           content: [
