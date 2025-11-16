@@ -292,6 +292,62 @@ export class MyMCP extends McpAgent {
         };
       }
     );
+    this.server.tool(
+      "get_todo",
+      "Get a specific todo by ID",
+      {
+        todo_id: z.string().describe("Todo ID"),
+      },
+      async ({ todo_id }) => {
+        // Fetch todo data
+        const todoData = await this.kv.get(`todo:${todo_id}`);
+        if (!todoData) {
+          throw new Error(`Todo with ID: ${todo_id} not found!`);
+        }
+
+        const todo: Todo = JSON.parse(todoData);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(todo, null, 2),
+            },
+          ],
+        };
+      }
+    );
+
+    this.server.tool(
+      "list_todos",
+      "List all todos in a project",
+      {
+        project_id: z.string().describe("Project ID"),
+        status: z.enum(["pending", "in_progress", "completed", "all"]).optional().describe("filter by status"),
+      },
+      async ({ project_id, status }) => {
+        // Fetch todo data
+        const projectData = await this.kv.get(`project:${project_id}`);
+        if (!projectData) {
+          throw new Error(`Todo with ID: ${project_id} not found!`);
+        }
+
+        let todos = await this.getTodosByProject(project_id)
+
+        if (status && status !== "all") {
+          todos = todos.filter((todos) => todos.status === status);
+        }
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(todos, null, 2),
+            },
+          ],
+        };
+      }
+    );
+
   }
 }
 
